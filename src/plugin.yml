@@ -1,0 +1,10 @@
+name: McTranslit
+main: me.galaran.mctranslit.McTranslit
+version: 1.0
+commands:
+  translit:
+      description: Enables or disables chat transliteration for incoming messages
+      usage: /translit on|off
+  translittest:
+      description: Prints transliterated message of parameter (only for OPs)
+      usage: /translittest <test message>
