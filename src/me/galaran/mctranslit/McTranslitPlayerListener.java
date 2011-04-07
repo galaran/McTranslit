@@ -42,7 +42,7 @@ class McTranslitPlayerListener extends PlayerListener {
         if (!event.getMessage().equals(transliteratedMessage)) {
             event.setCancelled(true);
             // print translitted message to console
-            System.out.println("[translit]<" + event.getPlayer().getName() + "> " + transliteratedMessage);
+            System.out.println("[TRANSLIT] <" + event.getPlayer().getName() + "> " + transliteratedMessage);
             for (Player curPlayer : plugin.getServer().getOnlinePlayers()) {
                 if (plugin.getTranslitPlayers().contains(curPlayer.getName())) {
                     curPlayer.sendMessage('<' + event.getPlayer().getDisplayName() + "> " + transliteratedMessage);
