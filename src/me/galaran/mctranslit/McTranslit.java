@@ -68,7 +68,7 @@ public class McTranslit extends JavaPlugin {
         try {
             loadSettings();
         } catch (IOException ex) {
-            System.out.println(pdfFile.getName() + ": failed to load config");
+            System.out.println(pdfFile.getName() + ": exception while loading settings");
             ex.printStackTrace();
             return;
         }
@@ -133,14 +133,13 @@ public class McTranslit extends JavaPlugin {
         File pluginDir = getDataFolder();
         String curString;
         
-        File playersFile = new File(pluginDir, FILE_PLAYERS);
-        BufferedReader playerReader = new BufferedReader(new InputStreamReader(new FileInputStream(playersFile)));
-        while ((curString = playerReader.readLine()) != null) {
-            translitPlayers.add(curString);
-        }
-        playerReader.close();
-        
+        // translit map
         File translitMapFile = new File(pluginDir, FILE_TRANSLIT_MAP);
+        if (!translitMapFile.exists()) {
+            System.out.println(getDescription().getName() + ": translit rules file not found. Loading default, see in "
+                    + getDataFolder() + File.separator + FILE_TRANSLIT_MAP);
+            FileHelper.extractFileFromJarRoot("translit.txt", getDataFolder());
+        }
         BufferedReader translitMapReader = new BufferedReader(new InputStreamReader(new FileInputStream(translitMapFile), "utf-8"));
         
         while ((curString = translitMapReader.readLine()) != null) {
@@ -148,6 +147,17 @@ public class McTranslit extends JavaPlugin {
             translitMap.put(curString.charAt(0), curString.substring(2, commentBeginsAt).trim());
         }
         translitMapReader.close();
+        
+        // player list
+        File playersFile = new File(pluginDir, FILE_PLAYERS);
+        if (!playersFile.exists()) {
+            return;
+        }
+        BufferedReader playerReader = new BufferedReader(new InputStreamReader(new FileInputStream(playersFile)));
+        while ((curString = playerReader.readLine()) != null) {
+            translitPlayers.add(curString);
+        }
+        playerReader.close();
     }
     
     private void saveSettings() {
