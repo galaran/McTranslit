@@ -18,7 +18,6 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 * MA 02111-1307, USA.
 */
-
 package me.galaran.mctranslit;
 
 import org.bukkit.entity.Player;
@@ -28,9 +27,13 @@ import org.bukkit.event.player.PlayerListener;
 class McTranslitPlayerListener extends PlayerListener {
 
     private final McTranslit plugin;
+    private final Translitter translitter;
+    private final PlayerDBManager db;
 
-    public McTranslitPlayerListener(McTranslit plugin) {
+    public McTranslitPlayerListener(McTranslit plugin, Translitter translitter, PlayerDBManager db) {
         this.plugin = plugin;
+        this.translitter = translitter;
+        this.db = db;
     }
     
     @Override
@@ -38,19 +41,55 @@ class McTranslitPlayerListener extends PlayerListener {
         if (event.getMessage().startsWith("/")) // ignore commands
             return;
         
-        String transliteratedMessage = Translitter.transliterate(event.getMessage(), plugin.getTranslitMap());
-        if (!event.getMessage().equals(transliteratedMessage)) {
-            event.setCancelled(true);
-            // print translitted message to console
-            System.out.println("[TRANSLIT] <" + event.getPlayer().getName() + "> " + transliteratedMessage);
-            for (Player curPlayer : plugin.getServer().getOnlinePlayers()) {
-                if (plugin.getTranslitPlayers().contains(curPlayer.getName())) {
-                    curPlayer.sendMessage('<' + event.getPlayer().getDisplayName() + "> " + transliteratedMessage);
-                } else {
-                    curPlayer.sendMessage('<' + event.getPlayer().getDisplayName() + "> " + event.getMessage());
-                }
-            } // for
-        } // if
+        event.setCancelled(true);
+        
+        Player sender = event.getPlayer();
+        String messageForLanguagePackUsers = null;
+        String messageForNativeClientUsers = null;
+        
+        // preprocess
+        switch (db.getMode(sender)) {
+            case OFF:  messageForLanguagePackUsers = event.getMessage();
+                       messageForNativeClientUsers = translitter.transliterate(event.getMessage());
+                       // if language pack user write full translit message
+                       if (messageForNativeClientUsers.equals(messageForLanguagePackUsers)) { 
+                           event.setCancelled(false);                                          
+                           return;
+                       }
+                       break;
+                
+            case IN:   event.setCancelled(false);
+                       return;
+                
+            case FULL: messageForLanguagePackUsers = translitter.detransliterate(event.getMessage());
+                       messageForNativeClientUsers = translitter.removeFullModePrefixs(event.getMessage());
+                       break;
+                
+            case DW:   messageForLanguagePackUsers = translitter.transliterateMarkedWords(event.getMessage());
+                       messageForNativeClientUsers = translitter.transliterateDwMessage(event.getMessage());
+                       // if DW player write full-translit message without DW-prefixs
+                       if (messageForNativeClientUsers.equals(event.getMessage())) { 
+                           event.setCancelled(false);                                          
+                           return;
+                       }
+                       break;
+        }
+        printMessageToConsole(messageForNativeClientUsers, sender);
+        for (Player reciever : plugin.getServer().getOnlinePlayers()) {
+            TranslitMode recieverMode = db.getMode(reciever);
+            if (recieverMode == TranslitMode.OFF || recieverMode == TranslitMode.DW) { // reciever use language pack
+                sendMessageToPlayer(messageForLanguagePackUsers, sender, reciever);
+            } else {
+                sendMessageToPlayer(messageForNativeClientUsers, sender, reciever);
+            }
+        }
     }
     
+    private void sendMessageToPlayer(String message, Player sender, Player reciever) {
+        reciever.sendMessage('<' + sender.getDisplayName() + "> " + message);
+    }
+
+    private void printMessageToConsole(String message, Player sender) {
+        System.out.println("[TRANSLIT] <" + sender.getName() + "> " + message);
+    }
 }

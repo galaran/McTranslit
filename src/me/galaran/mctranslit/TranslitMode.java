@@ -20,34 +20,43 @@
  */
 package me.galaran.mctranslit;
 
-public class StringUtils {
+import java.util.HashMap;
+import java.util.Map;
 
-    public static String buildString(String[] strArr, char delimiter) {
-        StringBuilder sb = new StringBuilder();
-        for (String curStr : strArr) {
-            sb.append(curStr);
-            sb.append(delimiter);
-        }
-        sb.deleteCharAt(sb.length() - 1);
-        return sb.toString();
+public enum TranslitMode {
+    
+    OFF("off"),
+    
+    IN("in"),
+    
+    FULL("full"),
+    
+    DW("dw");
+    
+    
+    private final String code;
+    private final static Map<String, TranslitMode> translitModes = new HashMap<String, TranslitMode>();
+    
+    private TranslitMode(String code) {
+        this.code = code;
+    }
+    
+    public static TranslitMode getByCode(String code) {
+        return translitModes.get(code);
+    }
+    
+    public String getCode() {
+        return code;
     }
 
-    public static String byteArrayAsString(byte[] bytes) {
-        StringBuilder sb = new StringBuilder();
-        for (byte cur : bytes) {
-            sb.append((int) cur).append(' ');
-        }
-        return sb.toString();
+    @Override
+    public String toString() {
+        return code;
     }
-
-    public static String removePrefixes(String str, char prefix) {
-        String[] words = str.split(" ");
-        for (int i = 0; i < words.length; i++) {
-            if (words[i].startsWith(String.valueOf(prefix))) {
-                words[i] = words[i].substring(1);
-            }
+    
+    static {
+        for (TranslitMode tm : TranslitMode.values()) {
+            translitModes.put(tm.getCode(), tm);
         }
-
-        return buildString(words, ' ');
     }
 }

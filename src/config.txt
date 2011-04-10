@@ -1,0 +1,87 @@
+# Transliterate mode for new players (who are sending message first time)
+# off / in / out / dw
+default_mode: off
+
+# For out messages with full mode, words with this prefix will not be detransliterated and will be recieved "as is"
+# Example: "Privet @test" => "Привет test" for players, who are use language patch and "Privet test" for, who are not.
+# "Use language patch" means, that this players plays with [off] or [dw] mode
+full_ignore_word_prefix: @
+
+# For out messages, words with this prefix will be detransliterated even for players, who uses language pack
+# Example: "!Лол неплохо" => "Lol, неплохо" for players, who are use language patch and "Lol, neploho" for, who are not.
+# This used for fast typing without switching keyboard layout
+dw_detransliterate_word_prefix: !
+
+# ============= Translit table ============
+# One symbol matchs several translit rules, splits with ';'
+# With forward transliteration every symbol will be replaced by first translit rule
+# e.g. for [õ: h;x # х], õ(cyrillic "x" actually) will be replaced with "h", not "x"
+#
+# Detransliterator will find most long match sequence and replace with one native character
+# e.g. "yama" -> "яма", not "уама"
+[rules]
+À: A   # А
+Á: B   # Б
+Â: V   # В
+Ã: G   # Г
+Ä: D   # Д
+Å: E   # Е
+Æ: ZH  # Ж
+Ç: Z   # З
+È: I   # И
+É: J   # Й
+Ê: K   # К
+Ë: L   # Л
+Ì: M   # М
+Í: N   # Н
+Î: O   # О
+Ï: P   # П
+Ð: R   # Р
+Ñ: S   # С
+Ò: T   # Т
+Ó: U   # У
+Ô: F;PH   # Ф
+Õ: H;X # X
+Ö: C   # Ц
+×: CH  # Ч
+Ø: SH  # Ш
+Ù: SHH;W # Щ
+Ú: 'B   # Ъ
+Û: Y   # Ы
+Ü: ''  # Ь
+Ý: JE   # Э
+Þ: JU;YU   # Ю
+ß: YA;JA  # Я
+à: a   # а
+á: b   # б
+â: v   # в
+ã: g   # г
+ä: d   # д
+å: e   # е
+¸: jo  # ё
+æ: zh  # ж
+ç: z   # з
+è: i   # и
+é: j   # й
+ê: k   # к
+ë: l   # л
+ì: m   # м
+í: n   # н
+î: o   # о
+ï: p   # п
+ð: r   # р
+ñ: s   # с
+ò: t   # т
+ó: u   # у
+ô: f;ph  # ф
+õ: h;x # х
+ö: c   # ц
+÷: ch  # ч
+ø: sh  # ш
+ù: shh;w # щ
+ú: 'b  # ъ
+û: y;bI  # ы
+ü: '   # ь
+ý: je   # э
+þ: yu;ju   # ю
+ÿ: ya  # я

@@ -18,21 +18,12 @@
 * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
 * MA 02111-1307, USA.
 */
-
 package me.galaran.mctranslit;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileWriter;
 import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -49,15 +40,12 @@ import org.bukkit.plugin.java.JavaPlugin;
  * @author galaran
  */
 public class McTranslit extends JavaPlugin {
-    
-    public final String FILE_PLAYERS = "players.txt";
-    public final String FILE_TRANSLIT_MAP = "translit.txt";
 
     private PluginManager pm;
-    private McTranslitPlayerListener playerListener = new McTranslitPlayerListener(this);
-    
-    private Map<Character, String> translitMap = new HashMap<Character, String>();
-    private Set<String> translitPlayers = Collections.synchronizedSet(new HashSet<String>());
+    private McTranslitPlayerListener playerListener;
+    private Config cfg;
+    private PlayerDBManager db;
+    private Translitter translitter;
 
     @Override
     public void onEnable() {
@@ -65,23 +53,41 @@ public class McTranslit extends JavaPlugin {
         PluginDescriptionFile pdfFile = getDescription();
         System.out.println(pdfFile.getName() + " version " + pdfFile.getVersion() + " is enabled!");
         
+        cfg = new Config(this);
+        db = new PlayerDBManager(this, cfg);
+        
         try {
-            loadSettings();
+            cfg.loadConfig();
         } catch (IOException ex) {
-            System.out.println(pdfFile.getName() + ": exception while loading settings");
+            System.out.println(pdfFile.getName() + ": exception while loading configuration");
             ex.printStackTrace();
             return;
         }
-        System.out.println(pdfFile.getName() + ": loaded " + translitPlayers.size() + " players and " +
-                translitMap.size() + " translit rules");
+        
+        try {
+            db.initDb();
+        } catch (IOException ex) {
+            System.out.println(pdfFile.getName() + ": exception while loading player db");
+            ex.printStackTrace();
+            return;
+        }
+        
+        System.out.println(pdfFile.getName() + ": loaded " + db.getSize() + " players and " +
+                cfg.getTranslitMap().size() + " translit rules");
 
-        pm.registerEvent(Event.Type.PLAYER_CHAT, playerListener, Priority.Low, this);
+        translitter = new Translitter(cfg);
+        playerListener = new McTranslitPlayerListener(this, translitter, db);
+        pm.registerEvent(Event.Type.PLAYER_CHAT, playerListener, Priority.Lowest, this);
+        
+        // save Db every 3 min
+        ScheduledExecutorService ex = Executors.newSingleThreadScheduledExecutor();
+        ex.scheduleWithFixedDelay(db, 1, 3, TimeUnit.MINUTES);
     }
 
 
     @Override
     public void onDisable() {
-
+        db.saveDb(); // forced
     }
 
     @Override
@@ -91,98 +97,67 @@ public class McTranslit extends JavaPlugin {
             return true;
         }
         
-        Player pl = (Player) sender;
+        Player player = (Player) sender;
         
         if (command.getName().equalsIgnoreCase("translit")) {
-            if (args.length == 0) {
-                pl.sendMessage(ChatColor.DARK_AQUA + "Invalid parameters. Usage: " + command.getUsage());
+            if (args.length < 1) {
+                printUsage(sender, command);
                 return true;
             }
             
-            if (args[0].equalsIgnoreCase("on")) {
-                // add this player to translit set
-                translitPlayers.add(pl.getName());
-                saveSettings();
-                pl.sendMessage(ChatColor.AQUA + "Now you will receive transliterated messages");
-            } else if (args[0].equalsIgnoreCase("off")) {
-                // remove from translit set
-                translitPlayers.remove(pl.getName());
-                saveSettings();
-                pl.sendMessage(ChatColor.AQUA + "Now you will receive original messages");
+            if (args[0].equalsIgnoreCase("off")) {
+                db.setMode(player, TranslitMode.OFF);
+                player.sendMessage(ChatColor.AQUA + "Now you will receive messages \"as is\"");
+                return true;
+            } else if (args[0].equalsIgnoreCase("in")) {
+                db.setMode(player, TranslitMode.IN);
+                player.sendMessage(ChatColor.AQUA + "Now you will receive transliterated messages");
+                return true;
+            } else if (args[0].equalsIgnoreCase("full")) {
+                db.setMode(player, TranslitMode.FULL);
+                player.sendMessage(ChatColor.AQUA + "Now you will receive transliterated messages");
+                player.sendMessage(ChatColor.AQUA + "and send detransliterated to players, who use language pack");
+                player.sendMessage(ChatColor.AQUA + "Write '" + cfg.getFullModePrefix() + "' before word, if you want");
+                player.sendMessage(ChatColor.AQUA + "to send it \"as is\"");
+                return true;
+            } else if (args[0].equalsIgnoreCase("dw")) {
+                db.setMode(player, TranslitMode.DW);
+                player.sendMessage(ChatColor.AQUA + "Use '" + cfg.getDwModePrefix() + "' ?? how to describe this ?");
+                return true;
             } else {
-                pl.sendMessage(ChatColor.DARK_AQUA + "Invalid parameters. Usage: " + command.getUsage());
+                printUsage(sender, command);
             }
             return true;
         }
 
-        if (command.getName().equalsIgnoreCase("translittest") && pl.isOp()) {
+        if (command.getName().equalsIgnoreCase("translittest")) {
             if (args.length == 0) {
-                pl.sendMessage(ChatColor.DARK_AQUA + "Invalid parameters. Usage: " + command.getUsage());
+                player.sendMessage(ChatColor.DARK_AQUA + "Invalid parameters. Usage: " + command.getUsage());
                 return true;
             }
             
-            String transliterated = Translitter.transliterate(StringUtils.buildString(args, ' '), translitMap);
-            pl.sendMessage(ChatColor.AQUA + "> " + transliterated);
+            String transliterated = translitter.transliterate(StringUtils.buildString(args, ' '));
+            player.sendMessage(ChatColor.AQUA + "> " + transliterated);
+            return true;
+        }
+        
+        if (command.getName().equalsIgnoreCase("detranslittest")) {
+            if (args.length == 0) {
+                player.sendMessage(ChatColor.DARK_AQUA + "Invalid parameters. Usage: " + command.getUsage());
+                return true;
+            }
+            
+            String detransliterated = translitter.detransliterate(StringUtils.buildString(args, ' '));
+            player.sendMessage(ChatColor.AQUA + "> " + detransliterated);
             return true;
         }
         
         return false;
     }
-
-    private void loadSettings() throws IOException {
-        File pluginDir = getDataFolder();
-        String curString;
-        
-        // translit map
-        File translitMapFile = new File(pluginDir, FILE_TRANSLIT_MAP);
-        if (!translitMapFile.exists()) {
-            System.out.println(getDescription().getName() + ": translit rules file not found. Loading default, see in "
-                    + getDataFolder() + File.separator + FILE_TRANSLIT_MAP);
-            FileHelper.extractFileFromJarRoot("translit.txt", getDataFolder());
-        }
-        BufferedReader translitMapReader = new BufferedReader(new InputStreamReader(new FileInputStream(translitMapFile), "utf-8"));
-        
-        while ((curString = translitMapReader.readLine()) != null) {
-            int commentBeginsAt = curString.indexOf("#");
-            translitMap.put(curString.charAt(0), curString.substring(2, commentBeginsAt).trim());
-        }
-        translitMapReader.close();
-        
-        // player list
-        File playersFile = new File(pluginDir, FILE_PLAYERS);
-        if (!playersFile.exists()) {
-            return;
-        }
-        BufferedReader playerReader = new BufferedReader(new InputStreamReader(new FileInputStream(playersFile)));
-        while ((curString = playerReader.readLine()) != null) {
-            translitPlayers.add(curString);
-        }
-        playerReader.close();
-    }
     
-    private void saveSettings() {
-        try {
-            File playersFile = new File(getDataFolder(), FILE_PLAYERS);
-            playersFile.delete();
-            BufferedWriter bw = new BufferedWriter(new FileWriter(playersFile));
-            for (String player : translitPlayers) {
-                bw.write(player);
-                bw.newLine();
-            }
-            bw.close();
-        } catch (IOException ex) {
-            System.out.println(getDescription().getName() + ": error saving player list");
-            ex.printStackTrace();
-        }
+    private void printUsage(CommandSender sender, Command command) {
+        sender.sendMessage(ChatColor.DARK_AQUA + "Usage: " + command.getUsage());
     }
-    
-    public Set<String> getTranslitPlayers() {
-        return translitPlayers;
-    }
-
-    public Map<Character, String> getTranslitMap() {
-        return translitMap;
-    }
-    
+        
 }
 
