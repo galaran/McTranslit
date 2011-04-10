@@ -1,6 +1,6 @@
 name: McTranslit
 main: me.galaran.mctranslit.McTranslit
-version: 1.0
+version: 0.2
 commands:
   translit:
       description: Set mode of chat transliteration
