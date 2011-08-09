@@ -1,4 +1,4 @@
-# Transliterate mode for new players (who are sending message first time)
+﻿# IZMENENIE Transliterate mode for new players (who are sending message first time)
 # off / in / out / dw
 default_mode: off
 
